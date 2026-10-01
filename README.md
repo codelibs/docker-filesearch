@@ -327,6 +327,7 @@ Fess reads settings from three places; this environment uses all of them.
 | Key | Value | Why |
 |---|---|---|
 | `adaptive.load.control` | `0` | Never pause the crawler because the host is busy (the default 50 can stall a crawl on a shared machine) |
+| `file.role.from.file`, `smb.role.from.file` | `false` | By default (`true`) the owner and group of every file become roles (`1<owner>`, `2<group>`) of its document, and the roles are part of the document id. The sample tree has no meaningful permissions (every file is visible through `{role}guest`), and a bind-mounted directory read by two containers (Fess and the optional Samba service) can show a different owner to Fess from one crawl to the next on Docker Desktop for Mac, so unchanged files were fetched and indexed again on every crawl |
 | `query.additional.sort.fields` | `filetype,url` | Allows `sort=filetype.asc` and `sort=url.desc`; they are rejected (HTTP 400) by default |
 | `crawler.document.cache.enabled` | `true` | Keep the extracted text for the cache view `/api/v2/cache/{docId}` |
 | `crawler.document.cache.supported.mimetypes` | `text/html`, the text-like types (`text/plain`, `text/csv`, `text/x-web-markdown`, `text/x-log`, `application/json`, ...), `application/pdf` and the three Office (OOXML) types | The default is `text/html` only. With these, `has_cache` is true for every sample file except the PNG images. The cache holds the extracted text, which is the only content preview for PDF and Office files. Re-crawl after changing it: documents crawled earlier have no cache |
