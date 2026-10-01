@@ -7,6 +7,9 @@
 /data/opensearch/usr/share/opensearch/data
 /data/opensearch/usr/share/opensearch/config/dictionary
 
+# Embedding model id written by init-semantic
+/data/semantic
+
 # Generated sample file tree (bin/seed-sample.sh)
 /data/files
 

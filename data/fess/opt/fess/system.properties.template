@@ -9,3 +9,5 @@ web.api.json=true
 login.required=false
 result.collapsed=false
 user.favorite=true
+# Do not add content_chunker.* here: it is set by -Dfess.system.* in compose.yaml,
+# and a value in this file would win over that.

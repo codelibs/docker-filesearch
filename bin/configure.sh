@@ -8,16 +8,21 @@
 #      tokens only, never the console session);
 #   2. create the file crawl config for file:///data/files/ through the Admin API
 #      (an existing config of the same name is reused);
-#   3. start the Default Crawler job and wait until the documents are indexed.
+#   3. start the Default Crawler job and wait until the documents are indexed;
+#   4. enable the Content Chunk Vector Indexer job (shipped disabled) and run it,
+#      which stores the chunk vectors the hybrid search needs; stop if the indexer
+#      reports that it skipped the run (the job log says "ok" even then).
 #
 # Safe to run again: it re-uses the token and the crawl config and simply
-# crawls again (unchanged files are skipped by the incremental crawl).
+# crawls again (unchanged files are skipped by the incremental crawl); the
+# indexer only embeds documents that have no vectors yet.
 #
 #   bash bin/configure.sh               # configure and crawl
 #   bash bin/configure.sh --smb         # also crawl the same files over SMB
 #                                       # (start the Samba service first:
 #                                       #  docker compose --profile smb up -d)
 #   CRAWL_TIMEOUT=900 bash bin/configure.sh
+#   VECTOR_TIMEOUT=3600 bash bin/configure.sh   # seconds to wait for the indexer
 set -euo pipefail
 
 WITH_SMB=false
@@ -45,6 +50,7 @@ TOKEN_NAME="${FESS_TOKEN_NAME:-filesearch-dev}"
 CONFIG_NAME="${FESS_CRAWL_CONFIG_NAME:-Sample Files}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-300}"
 CRAWL_TIMEOUT="${CRAWL_TIMEOUT:-600}"
+VECTOR_TIMEOUT="${VECTOR_TIMEOUT:-1800}"
 
 COOKIES="$(mktemp)"
 trap 'rm -f "${COOKIES}"' EXIT
@@ -223,6 +229,126 @@ log "Indexed ${count} documents (expected ${expected})."
 if [ "${count}" -lt "${expected}" ]; then
   log "WARNING: $((expected - count)) documents were not indexed. Check Admin > Crawler > Failure URL and data/fess/var/log/fess/fess-crawler.log."
 fi
+
+# ---------------------------------------------------------------------------
+# 5. Chunk vectors (the semantic half of the hybrid search)
+# ---------------------------------------------------------------------------
+# Fess embeds documents only from the Content Chunk Vector Indexer job, never at
+# crawl time, and ships that job disabled. Enable it and run it once now.
+VECTOR_JOB_ID="content-chunk-vector-indexer"
+VECTOR_JOB_NAME="Content Chunk Vector Indexer"
+
+vector_job() { api "${BASE}/api/admin/scheduler/setting/${VECTOR_JOB_ID}"; }
+# true / false; empty when the job cannot be read.
+vector_job_running() { vector_job | jget 'str(d["response"]["setting"].get("running")).lower()' 2>/dev/null || true; }
+# "<status> <start time in ms>" of the job-log row with the id $1 (empty until the row exists).
+log_row_by_id() {
+  api "${BASE}/api/admin/joblog/log/$1" | jget 'd["response"]["log"]["job_status"] + " " + str(d["response"]["log"]["start_time"])' 2>/dev/null || true
+}
+# The same for the newest row of the indexer (empty if none; the newest rows come first).
+log_row_latest() {
+  api "${BASE}/api/admin/joblog/logs?size=100" | NAME="${VECTOR_JOB_NAME}" python3 -c '
+import json, os, sys
+logs = json.load(sys.stdin)["response"].get("logs", [])
+print(next((l["job_status"] + " " + str(l["start_time"]) for l in logs if l.get("job_name") == os.environ["NAME"]), ""))' 2>/dev/null || true
+}
+
+job="$(vector_job)"
+[ "$(printf '%s' "${job}" | jget 'd["response"]["status"]')" = "0" ] || die "The ${VECTOR_JOB_NAME} job was not found: ${job}"
+if [ "$(printf '%s' "${job}" | jget 'str(d["response"]["setting"]["available"]).lower()')" != "true" ]; then
+  body="$(printf '%s' "${job}" | python3 -c '
+import json, sys
+s = json.load(sys.stdin)["response"]["setting"]
+s["available"] = "true"
+print(json.dumps(s))')"
+  resp="$(api -X PUT "${BASE}/api/admin/scheduler/setting" -d "${body}")"
+  [ "$(printf '%s' "${resp}" | jget 'd["response"]["status"]')" = "0" ] || die "Enabling the ${VECTOR_JOB_NAME} failed: ${resp}"
+  log "Enabled the ${VECTOR_JOB_NAME} (schedule unchanged)."
+fi
+
+# The start API returns the id of the job-log row of the run it starts. A run that is
+# already going (started by its schedule) has no id we know of: wait for the job to stop.
+run_id=""
+if [ "$(vector_job_running)" = "true" ]; then
+  log "The ${VECTOR_JOB_NAME} is already running; waiting for it."
+else
+  started=false
+  for _ in $(seq 1 12); do
+    resp="$(api -X PUT "${BASE}/api/admin/scheduler/${VECTOR_JOB_ID}/start")"
+    if [ "$(printf '%s' "${resp}" | jget 'd["response"]["status"]')" = "0" ]; then
+      run_id="$(printf '%s' "${resp}" | jget 'd["response"].get("job_log_id") or ""')"
+      started=true
+      log "Started the ${VECTOR_JOB_NAME}."
+      break
+    fi
+    # A job that was just enabled can be started only once the scheduler has picked it up
+    # (scheduler.monitor.interval, 30 s by default); a refused start can also mean the
+    # schedule started it in the meantime.
+    if [ "$(vector_job_running)" = "true" ]; then
+      log "The ${VECTOR_JOB_NAME} is already running; waiting for it."
+      started=true
+      break
+    fi
+    sleep 10
+  done
+  [ "${started}" = "true" ] || die "Could not start the ${VECTOR_JOB_NAME}; start it from ${BASE}/admin/scheduler/."
+fi
+
+log "Waiting for the ${VECTOR_JOB_NAME} (up to ${VECTOR_TIMEOUT}s)..."
+started_at=${SECONDS}
+deadline=$((SECONDS + VECTOR_TIMEOUT))
+while :; do
+  if [ -n "${run_id}" ]; then
+    row="$(log_row_by_id "${run_id}")"
+    [ -n "${row}" ] || [ $((SECONDS - started_at)) -lt 120 ] || die "The ${VECTOR_JOB_NAME} left no job-log row (id ${run_id}). See ${BASE}/admin/joblog/"
+  elif [ "$(vector_job_running)" = "false" ]; then
+    row="$(log_row_latest)"
+  else
+    row=""
+  fi
+  case "${row%% *}" in
+    ""|running) ;;
+    *) break ;;
+  esac
+  [ "${SECONDS}" -lt "${deadline}" ] || die "Timed out after ${VECTOR_TIMEOUT}s waiting for the ${VECTOR_JOB_NAME}. See ${BASE}/admin/joblog/"
+  sleep 5
+done
+run_status="${row%% *}"
+run_start_ms="${row#* }"
+[ "${run_status}" = "ok" ] || die "The ${VECTOR_JOB_NAME} ended with status '${run_status}'. See ${BASE}/admin/joblog/ and data/fess/var/log/fess/fess-chunk.log"
+
+# The job log says "ok" even when the indexer skipped the whole run (embedding model not
+# available, vector dimension different from the index, ...): only the summary line the
+# indexer logs tells. The newest one since this run began has to be a "Processed ..." line.
+result="$(api "${BASE}/api/admin/log/file/$(printf 'fess-chunk.log' | base64)" | START_MS="${run_start_ms}" python3 -c '
+import datetime, json, os, sys
+start = int(os.environ["START_MS"]) / 1000.0 - 2
+marker = "Chunk vector processing result: "
+last = ""
+for line in sys.stdin:
+    if marker not in line:
+        continue
+    try:
+        d = json.loads(line)
+        ts = datetime.datetime.strptime(d["@timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=datetime.timezone.utc).timestamp()
+    except (ValueError, KeyError):
+        continue
+    if ts >= start:
+        last = d["message"].split(marker, 1)[1]
+print(last)' 2>/dev/null || true)"
+case "${result}" in
+  "Processed "*)
+    log "The ${VECTOR_JOB_NAME} finished: ${result}"
+    left="$(printf '%s' "${result}" | sed -n 's|.*Failed/Skipped: \([0-9][0-9]*\)\..*|\1|p')"
+    if [ "${left:-0}" -gt 0 ]; then
+      # Typically files that changed while the indexer ran ("Skipped due to concurrent update").
+      log "WARNING: ${left} documents were not vectorized in this run. Run this script again to pick them up (see data/fess/var/log/fess/fess-chunk.log)."
+    fi
+    ;;
+  "") die "The ${VECTOR_JOB_NAME} finished, but fess-chunk.log has no 'Chunk vector processing result:' line for this run. See data/fess/var/log/fess/fess-chunk.log" ;;
+  *) die "The ${VECTOR_JOB_NAME} skipped this run: ${result}" ;;
+esac
+
 log "Search UI:  ${BASE}/"
 log "Admin:      ${BASE}/admin/  (${ADMIN_USER} / ${ADMIN_PASSWORD})"
 log "Access token for /api/admin/* (local development only): ${TOKEN}"

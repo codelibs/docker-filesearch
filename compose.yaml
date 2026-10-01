@@ -15,6 +15,10 @@ services:
     depends_on:
       search01:
         condition: service_healthy
+      # Fess reads the embedding model id once at start (bin/fess-entrypoint.sh),
+      # so it starts only after init-semantic has deployed the model.
+      init-semantic:
+        condition: service_completed_successfully
     environment:
       SEARCH_ENGINE_HTTP_URL: "http://search01:9200"
       FESS_DICTIONARY_PATH: "/usr/share/opensearch/config/dictionary/"
@@ -27,11 +31,36 @@ services:
       #   crawler.document.cache.*      keep the extracted text of text, PDF and
       #                                 Office files so /api/v2/cache/{docId}
       #                                 can show a preview
+      #   rank.fusion.engine.enabled    OpenSearch fuses the keyword and the vector
+      #                                 query in one `hybrid` request (default false).
+      #                                 RANK_FUSION_ENGINE=false: Fess fuses them itself
+      #   query.additional.*response.fields
+      #                                 `searcher` in /api/v2/search: which half matched
+      #                                 a hit (default = keyword, semantic_chunk = vector)
+      # content_chunker.* (the vector half) is read ONLY from the system-properties
+      # channel, so it is passed as -Dfess.system.* (-Dfess.config.content_chunker.* is
+      # ignored). A value in data/fess/opt/fess/system.properties would win over these,
+      # so keep content_chunker.* out of that file. bin/fess-entrypoint.sh adds the
+      # embedding model id.
+      #   embedding.dimension  must match the model; fixed in the index mapping when
+      #                        the index is created
+      #   length.chunk_size    characters per chunk (README, Hybrid search)
+      #   search.min_score     minimum cosine similarity for the vector half
+      #   search.enabled       SEMANTIC_SEARCH=false: keyword search only
       FESS_JAVA_OPTS: >-
         -Dfess.config.adaptive.load.control=0
         -Dfess.config.query.additional.sort.fields=filetype,url
         -Dfess.config.crawler.document.cache.enabled=true
         -Dfess.config.crawler.document.cache.supported.mimetypes=text/html,text/plain,text/csv,text/markdown,text/x-web-markdown,text/x-log,application/json,application/xml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation
+        -Dfess.config.rank.fusion.engine.enabled=${RANK_FUSION_ENGINE:-true}
+        -Dfess.config.query.additional.response.fields=searcher
+        -Dfess.config.query.additional.api.response.fields=searcher
+        -Dfess.system.content_chunker.enabled=true
+        -Dfess.system.content_chunker.search.enabled=${SEMANTIC_SEARCH:-true}
+        -Dfess.system.content_chunker.embedding.dimension=${MODEL_DIMENSION:-384}
+        -Dfess.system.content_chunker.length.chunk_size=${CHUNK_SIZE:-500}
+        -Dfess.system.content_chunker.search.min_score=${SEMANTIC_MIN_SCORE:-0.35}
+    entrypoint: ["sh", "/fess-entrypoint.sh"]
     networks:
       - filesearch_net
     healthcheck:
@@ -41,6 +70,8 @@ services:
       retries: 3
       start_period: 120s
     volumes:
+      - ./bin/fess-entrypoint.sh:/fess-entrypoint.sh:ro
+      - ./data/semantic:/semantic:ro
       - ./data/fess/opt/fess:/opt/fess
       - ./data/fess/var/lib/fess:/var/lib/fess
       - ./data/fess/var/log/fess:/var/log/fess
@@ -49,6 +80,9 @@ services:
       - ./data/files:/data/files:ro
 
   search01:
+    # ghcr.io/codelibs/fess-opensearch ships the plugins the hybrid search needs:
+    # k-NN (chunk vectors), ML Commons (hosts the embedding model) and Neural
+    # Search (the `hybrid` query).
     image: ghcr.io/codelibs/fess-opensearch:3.8.0
     container_name: filesearch-search01
     restart: unless-stopped
@@ -58,8 +92,9 @@ services:
       - cluster.initial_cluster_manager_nodes=search01
       - cluster.name=fess-search
       - bootstrap.memory_lock=true
+      # `ml` lets ML Commons run the embedding model on this node.
       - node.roles=cluster_manager,data,ingest,ml
-      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_HEAP:-2g} -Xmx${OPENSEARCH_HEAP:-2g}"
       - "DISABLE_INSTALL_DEMO_CONFIG=true"
       - "DISABLE_SECURITY_PLUGIN=true"
       - "FESS_DICTIONARY_PATH=/usr/share/opensearch/config/dictionary"
@@ -84,8 +119,34 @@ services:
       - ./data/opensearch/usr/share/opensearch/data:/usr/share/opensearch/data
       - ./data/opensearch/usr/share/opensearch/config/dictionary:/usr/share/opensearch/config/dictionary
     ports:
-      # Security is disabled, so publish OpenSearch on the loopback interface only.
+      # Security is disabled and the node hosts ML Commons (anyone reaching this
+      # port could register models), so publish OpenSearch on loopback only.
       - "127.0.0.1:${SEARCH_HTTP_PORT:-9200}:9200"
+    networks:
+      - filesearch_net
+
+  # One-shot: register and deploy the embedding model in OpenSearch ML Commons,
+  # then hand its generated id to fess01 through ./data/semantic. Re-running
+  # reuses the deployed model. The first run downloads the model (~490 MB) and
+  # installs curl and jq from the Alpine index; later runs work offline as long
+  # as the model is still deployed (bin/setup-semantic.sh).
+  init-semantic:
+    image: alpine:3.24
+    depends_on:
+      search01:
+        condition: service_healthy
+    environment:
+      - OPENSEARCH_URL=http://search01:9200
+      - MODEL_NAME=${MODEL_NAME:-huggingface/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      - MODEL_VERSION=${MODEL_VERSION:-1.0.1}
+      - MODEL_DIMENSION=${MODEL_DIMENSION:-384}
+      - MODEL_ID_FILE=/semantic/model_id
+      - MAX_WAIT=${MODEL_MAX_WAIT:-900}
+    volumes:
+      - ./bin/setup-semantic.sh:/setup-semantic.sh:ro
+      - ./data/semantic:/semantic
+    entrypoint: ["/bin/sh", "/setup-semantic.sh"]
+    restart: "no"
     networks:
       - filesearch_net
 
