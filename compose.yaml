@@ -23,12 +23,17 @@ services:
       # system settings live in data/fess/opt/fess/system.properties instead
       # (see bin/setup.sh).
       #   adaptive.load.control=0       never throttle the small crawl
+      #   file.role.from.file=false     do not turn the file owner and group into
+      #   smb.role.from.file=false      roles: they are part of the document id, so
+      #                                 a changed owner re-indexes the file (see README)
       #   query.additional.sort.fields  allow sort=filetype.* and sort=url.*
       #   crawler.document.cache.*      keep the extracted text of text, PDF and
       #                                 Office files so /api/v2/cache/{docId}
       #                                 can show a preview
       FESS_JAVA_OPTS: >-
         -Dfess.config.adaptive.load.control=0
+        -Dfess.config.file.role.from.file=false
+        -Dfess.config.smb.role.from.file=false
         -Dfess.config.query.additional.sort.fields=filetype,url
         -Dfess.config.crawler.document.cache.enabled=true
         -Dfess.config.crawler.document.cache.supported.mimetypes=text/html,text/plain,text/csv,text/markdown,text/x-web-markdown,text/x-log,application/json,application/xml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation
