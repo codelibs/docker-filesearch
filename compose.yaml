@@ -102,6 +102,10 @@ services:
       # and the crawler then fails. The sample data is tiny, so do not let a
       # nearly full developer disk get in the way.
       - cluster.routing.allocation.disk.threshold_enabled=false
+      # Concurrent segment search gives a one-node demo index nothing, and with it
+      # some searches carrying the theme's `last_modified:[now/d-... TO *]` facets
+      # fail on a shard and come back partial (README, Troubleshooting).
+      - search.concurrent_segment_search.mode=none
     ulimits:
       memlock:
         soft: -1
