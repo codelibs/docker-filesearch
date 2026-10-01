@@ -19,6 +19,7 @@ mkdir -p ./data/fess/opt/fess
 mkdir -p ./data/fess/var/lib/fess
 mkdir -p ./data/fess/var/log/fess
 mkdir -p "${THEME_DEST}"
+mkdir -p ./data/semantic
 mkdir -p ./data/opensearch/usr/share/opensearch/data
 mkdir -p ./data/opensearch/usr/share/opensearch/config/dictionary
 
