@@ -238,6 +238,15 @@ Handy when writing a theme against this data (`q=*` matches every document):
 * **Fess shows the Bootstrap UI, not the theme**: check `docker compose logs fess01` / `data/fess/var/log/fess/fess.log`.
   `Theme dir 'x' name mismatch with manifest 'y'; skipping` means the directory name differs from `name:` in
   `theme.yml`; `The default theme 'x' is not installed` means `theme.default` does not match a mounted theme.
+* **The search page shows "Part of the search could not be completed; results may be incomplete."** (the
+  `/api/v2/search` response has `partial: true` and `shard_failed: true`; it hits a small share of the
+  searches, more of them under load): the theme sends `last_modified:[now/d-... TO *]` facet queries with
+  every search, and on OpenSearch 3.x concurrent segment search makes some of them fail on a shard
+  (`DateRangeIncludingNowQuery ... does not implement createWeight` in `docker compose logs search01`).
+  `compose.yaml` sets `search.concurrent_segment_search.mode=none` on `search01`, which costs a one-node demo
+  index nothing. If the banner appears, check that the setting is still in place:
+  `curl 'http://localhost:9200/_cluster/settings?include_defaults=true&flat_settings=true'` lists
+  `search.concurrent_segment_search.mode` with the value `none`.
 * **Port already in use** (`Bind for 0.0.0.0:8080 failed`): set `FESS_HTTP_PORT` / `SEARCH_HTTP_PORT` in `.env`
   and run `docker compose up -d` and `bash bin/configure.sh` again.
 * **No thumbnails**: see [Thumbnails](#thumbnails) (Alpine image, or the generator has not run yet).
