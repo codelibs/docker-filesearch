@@ -85,6 +85,7 @@ bash ./bin/setup.sh && docker compose up -d && bash ./bin/configure.sh
 | `FESS_THEMES_DIR` | (unset) | Local fess-themes checkout to copy the theme from |
 | `FESS_THEMES_REPO` / `FESS_THEMES_REF` | `https://github.com/codelibs/fess-themes.git` / `main` | Where `setup.sh` clones the theme from when `FESS_THEMES_DIR` is unset |
 | `FESS_ADMIN_USER` / `FESS_ADMIN_PASSWORD` | `admin` / `admin` | Account `configure.sh` signs in with |
+| `FESS_TOKEN_NAME` / `FESS_CRAWL_CONFIG_NAME` | `filesearch-dev` / `Sample Files` | Names of the access token and of the file crawl config that `configure.sh` creates, or reuses when one of that name exists. With `--smb`, the SMB crawl config is named `<FESS_CRAWL_CONFIG_NAME> (SMB)` |
 | `CRAWL_TIMEOUT`, `HEALTH_TIMEOUT` | `600`, `300` | Seconds `configure.sh` waits for the crawl and for Fess |
 
 ## Developing the theme
@@ -132,9 +133,9 @@ files, contents and modification times.
 * Sizes from a few hundred bytes to about 1.7 MB, modification times spread over
   three years (a few within the last week), so date, size and sort options have
   something to show.
-* Spaces and Japanese in folder names, a directory path over 300 characters, and
-  file names with `#`, `%`, `&`, `+`, `(`, `)` and `,` (in `Shared/Misc`) to
-  exercise URL handling.
+* Spaces and Japanese in folder names, one file path of 376 characters below `data/files` (the
+  longest directory path is 241), and file names with `#`, `%`, `&`, `+`, `(`, `)` and `,`
+  (in `Shared/Misc`) to exercise URL handling.
 
 ```
 bash bin/seed-sample.sh --clean                         # empty data/files first, then regenerate
@@ -209,8 +210,9 @@ no thumbnail is generated at all (`/thumbnail/` stays 404).
 * `/thumbnail/?docId=<id>&queryId=<query_id>` needs the `query_id` from a search response.
   A first request returns 404 and queues the document; the Thumbnail Generator job runs
   every minute, so the image is there a minute or two later.
-* Thumbnails are 100x100 PNGs. Pages with no `<img>` (the sample HTML) never get one,
-  and txt / md / csv / json / log files have no `thumbnail` field.
+* Thumbnails are PNGs that fit in a 100x100 box with the aspect ratio kept, so they are not all
+  100x100 (71x100 for the A4 pages of the sample PDFs, 100x63 for most sample PNG images).
+  Pages with no `<img>` (the sample HTML) never get one, and txt / md / csv / json / log files have no `thumbnail` field.
 * Japanese text is not drawn in PDF / Office thumbnails because the image has no
   Japanese fonts; the text is still extracted and searchable.
 
@@ -239,7 +241,10 @@ Handy when writing a theme against this data (`q=*` matches every document):
   `Theme dir 'x' name mismatch with manifest 'y'; skipping` means the directory name differs from `name:` in
   `theme.yml`; `The default theme 'x' is not installed` means `theme.default` does not match a mounted theme.
 * **Port already in use** (`Bind for 0.0.0.0:8080 failed`): set `FESS_HTTP_PORT` / `SEARCH_HTTP_PORT` in `.env`
-  and run `docker compose up -d` and `bash bin/configure.sh` again.
+  and run `docker compose up -d` and `bash bin/configure.sh` again. Other ports are not enough for a second
+  copy of this environment on the same Docker host: `compose.yaml` pins `container_name`
+  (`filesearch-fess01`, `filesearch-search01`, `filesearch-samba01`), so the second copy cannot create its
+  containers while the first one exists, unless you change those names in its `compose.yaml`.
 * **No thumbnails**: see [Thumbnails](#thumbnails) (Alpine image, or the generator has not run yet).
 * **`configure.sh` stops with "Admin login failed"**: set `FESS_ADMIN_USER` / `FESS_ADMIN_PASSWORD` if you changed the
   administrator password.
