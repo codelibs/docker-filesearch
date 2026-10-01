@@ -34,6 +34,10 @@ services:
       #   crawler.document.cache.*      keep the extracted text of text, PDF and
       #                                 Office files so /api/v2/cache/{docId}
       #                                 can show a preview
+      #   theme.index.frame.ancestors=  empty: the theme pages send no frame-ancestors
+      #                                 directive, so WebKit (Safari) shows the preview
+      #                                 and cache frames; X-Frame-Options: DENY still
+      #                                 keeps the pages out of frames (default 'none')
       #   rank.fusion.engine.enabled    OpenSearch fuses the keyword and the vector
       #                                 query in one `hybrid` request (default false).
       #                                 RANK_FUSION_ENGINE=false: Fess fuses them itself
@@ -57,6 +61,7 @@ services:
         -Dfess.config.query.additional.sort.fields=filetype,url
         -Dfess.config.crawler.document.cache.enabled=true
         -Dfess.config.crawler.document.cache.supported.mimetypes=text/html,text/plain,text/csv,text/markdown,text/x-web-markdown,text/x-log,application/json,application/xml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation
+        -Dfess.config.theme.index.frame.ancestors=
         -Dfess.config.rank.fusion.engine.enabled=${RANK_FUSION_ENGINE:-true}
         -Dfess.config.query.additional.response.fields=searcher
         -Dfess.config.query.additional.api.response.fields=searcher
