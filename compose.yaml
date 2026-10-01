@@ -1,0 +1,113 @@
+services:
+  fess01:
+    # In-development Fess 15.9 build. Pin a 15.9.x release tag (for example
+    # ghcr.io/codelibs/fess:15.9.0-noble) once it is published.
+    # The Ubuntu-based "-noble" variant is used because it ships ImageMagick,
+    # poppler and LibreOffice, which Fess needs for PDF / Office / image
+    # thumbnails. The plain ":snapshot" (Alpine) tag has none of them, so every
+    # thumbnail request stays a 404; use it by setting FESS_IMAGE if you do not
+    # need thumbnails.
+    image: ${FESS_IMAGE:-ghcr.io/codelibs/fess:snapshot-noble}
+    container_name: filesearch-fess01
+    restart: unless-stopped
+    ports:
+      - "${FESS_HTTP_PORT:-8080}:8080"
+    depends_on:
+      search01:
+        condition: service_healthy
+    environment:
+      SEARCH_ENGINE_HTTP_URL: "http://search01:9200"
+      FESS_DICTIONARY_PATH: "/usr/share/opensearch/config/dictionary/"
+      FESS_HEAP_SIZE: "1g"
+      # fess_config.properties overrides (-Dfess.config.<key>=<value>). Dynamic
+      # system settings live in data/fess/opt/fess/system.properties instead
+      # (see bin/setup.sh).
+      #   adaptive.load.control=0       never throttle the small crawl
+      #   query.additional.sort.fields  allow sort=filetype.* and sort=url.*
+      #   crawler.document.cache.*      keep the extracted text of text, PDF and
+      #                                 Office files so /api/v2/cache/{docId}
+      #                                 can show a preview
+      FESS_JAVA_OPTS: >-
+        -Dfess.config.adaptive.load.control=0
+        -Dfess.config.query.additional.sort.fields=filetype,url
+        -Dfess.config.crawler.document.cache.enabled=true
+        -Dfess.config.crawler.document.cache.supported.mimetypes=text/html,text/plain,text/csv,text/markdown,text/x-web-markdown,text/x-log,application/json,application/xml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation
+    networks:
+      - filesearch_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v2/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    volumes:
+      - ./data/fess/opt/fess:/opt/fess
+      - ./data/fess/var/lib/fess:/var/lib/fess
+      - ./data/fess/var/log/fess:/var/log/fess
+      - ./data/fess/usr/share/fess/app/themes/${THEME_NAME:-filesearch}:/usr/share/fess/app/themes/${THEME_NAME:-filesearch}
+      # Sample file tree (bin/seed-sample.sh), crawled as file:///data/files/
+      - ./data/files:/data/files:ro
+
+  search01:
+    image: ghcr.io/codelibs/fess-opensearch:3.8.0
+    container_name: filesearch-search01
+    restart: unless-stopped
+    environment:
+      - node.name=search01
+      - discovery.seed_hosts=search01
+      - cluster.initial_cluster_manager_nodes=search01
+      - cluster.name=fess-search
+      - bootstrap.memory_lock=true
+      - node.roles=cluster_manager,data,ingest,ml
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - "DISABLE_SECURITY_PLUGIN=true"
+      - "FESS_DICTIONARY_PATH=/usr/share/opensearch/config/dictionary"
+      # OpenSearch blocks index creation while the disk is more than 90% full,
+      # and the crawler then fails. The sample data is tiny, so do not let a
+      # nearly full developer disk get in the way.
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    volumes:
+      - ./data/opensearch/usr/share/opensearch/data:/usr/share/opensearch/data
+      - ./data/opensearch/usr/share/opensearch/config/dictionary:/usr/share/opensearch/config/dictionary
+    ports:
+      # Security is disabled, so publish OpenSearch on the loopback interface only.
+      - "127.0.0.1:${SEARCH_HTTP_PORT:-9200}:9200"
+    networks:
+      - filesearch_net
+
+  # Optional: the same files exported over SMB, so the tree shows
+  # \\samba01\share\... paths. Start with: docker compose --profile smb up -d
+  # and crawl it with: bash bin/configure.sh --smb
+  # The tag is pinned on purpose; when you bump it, re-check bin/configure.sh --smb.
+  samba01:
+    image: dockurr/samba:4.23.10
+    container_name: filesearch-samba01
+    profiles: ["smb"]
+    restart: unless-stopped
+    environment:
+      NAME: "share"
+      USER: "filesearch"
+      PASS: "filesearch"
+      RW: "N"
+    volumes:
+      - ./data/files:/storage:ro
+    networks:
+      - filesearch_net
+
+networks:
+  filesearch_net:
+    driver: bridge

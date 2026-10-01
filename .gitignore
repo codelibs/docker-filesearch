@@ -1,0 +1,16 @@
+# Runtime data (created by bin/setup.sh and by the containers)
+/data/fess/opt/fess/*
+!/data/fess/opt/fess/system.properties.template
+/data/fess/var/lib/fess
+/data/fess/var/log/fess
+/data/fess/usr/share/fess/app/themes/*
+/data/opensearch/usr/share/opensearch/data
+/data/opensearch/usr/share/opensearch/config/dictionary
+
+# Generated sample file tree (bin/seed-sample.sh)
+/data/files
+
+# Local overrides and credentials
+.env
+.env.local
+.env-ready

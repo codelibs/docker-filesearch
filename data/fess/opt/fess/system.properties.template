@@ -1,0 +1,11 @@
+#system.properties
+# Dynamic system settings (the values behind Admin > General).
+# bin/setup.sh copies this file to system.properties on first run; the live
+# file is git-ignored so Fess can rewrite it at runtime.
+theme.default=filesearch
+thumbnail.enabled=true
+search.file.proxy=true
+web.api.json=true
+login.required=false
+result.collapsed=false
+user.favorite=true
