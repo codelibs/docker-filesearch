@@ -17,8 +17,9 @@ Everything in the sample tree is made up. No real people, companies or products.
 ## Requirements
 
 * Docker with Compose v2 (Docker Desktop on macOS / Windows), about 8 GB of free memory
-  (measured peak: OpenSearch 4.8 GiB with the embedding model, Fess 2.1 GiB; on Docker Desktop that is the
-  memory limit of its VM, under Settings > Resources)
+  (measured peak: OpenSearch 4.8 GiB with the embedding model, Fess 2.1 GiB; about 1 GiB more for OpenSearch
+  with `OPENSEARCH_HEAP=4g`, see Troubleshooting; on Docker Desktop that is the memory limit of its VM, under
+  Settings > Resources)
 * Network access on the first run: OpenSearch downloads the embedding model (about 490 MB), and the
   one-shot `init-semantic` container installs `curl` and `jq` from the Alpine package index. Later
   `docker compose up -d` runs work offline as long as the model is still deployed
@@ -111,7 +112,7 @@ applies the new value.
 |---|---|---|
 | `FESS_HTTP_PORT` | `8080` | Fess on the host (container port 8080) |
 | `SEARCH_HTTP_PORT` | `9200` | OpenSearch on the host; bound to `127.0.0.1` only because its security plugin is disabled, and the node hosts ML Commons (anyone reaching the port could register models) |
-| `OPENSEARCH_HEAP` | `2g` | OpenSearch heap (`-Xms`/`-Xmx`); the node also hosts the embedding model |
+| `OPENSEARCH_HEAP` | `2g` | OpenSearch heap (`-Xms`/`-Xmx`); the node also hosts the embedding model. Use `4g` if a script sends searches back to back (see Troubleshooting) |
 | `FESS_IMAGE` | `ghcr.io/codelibs/fess:snapshot-noble` | Fess image (see [Thumbnails](#thumbnails)) |
 | `THEME_NAME` | `filesearch` | Theme directory to sync and mount |
 | `FESS_THEMES_DIR` | (unset) | Local fess-themes checkout to copy the theme from |
@@ -387,6 +388,11 @@ crawl config for `smb://samba01/share/`. The documents then also appear with hos
 `samba01` and `\\samba01\share\...` paths, so the total doubles. In the file
 authentication the port is `0` (the default port); `445` would not match.
 
+`configure.sh --smb` looks for `samba01` in the Compose project of this directory, or in the one named by
+`COMPOSE_PROJECT_NAME` (in `.env` or in the environment). If you start the stack with `docker compose -p <name>`,
+set `COMPOSE_PROJECT_NAME=<name>` instead: the script does not see `-p` and stops with `The samba01 service is not
+running`.
+
 ## Thumbnails
 
 Fess makes thumbnails of PDF, Office and image files with ImageMagick, poppler and
@@ -436,6 +442,20 @@ Handy when writing a theme against this data (`q=*` matches every document):
   index nothing. If the banner appears, check that the setting is still in place:
   `curl 'http://localhost:9200/_cluster/settings?include_defaults=true&flat_settings=true'` lists
   `search.concurrent_segment_search.mode` with the value `none`.
+* **A script that sends searches back to back gets HTTP 400 `Could not process the specified query`, or hybrid
+  searches return keyword results only (HTTP 200, no error; the `searcher` of the hits lists only `default`)**: seen
+  with the default `OPENSEARCH_HEAP=2g` at about 10 searches per second or four parallel clients (on Docker Desktop,
+  6 to 8% of theme-style searches were rejected, and 48% of plain browse requests at 25 per second); none in 5
+  minutes of mixed UI-like load with four workers. `docker compose logs search01` has `[parent] Data too large, data
+  for [<http_request>] would be [...], larger than the limit of [2040109465/1.8gb], real usage`: each search
+  allocates 16 to 33 MiB of short-lived memory, the JVM lets the heap fill, and OpenSearch's parent circuit breaker,
+  which can ask for a collection only every 5 seconds, rejects every request until then. ML Commons answers 429 at 85%
+  heap, which fails the query embedding and makes Fess fall back to keyword-only (`fess.log`: `embedQuery retry
+  exhausted ... lastStatus=429`, `Failed to embed query ... falling back to keyword-only`). Set `OPENSEARCH_HEAP=4g`
+  in `.env` (or in the environment) and run `docker compose up -d search01`: it removed the rejections in every
+  scenario tried (`3g` did not, 19% in the worst case) and costs about 1 GiB more memory. OpenSearch loads the
+  embedding model again after the restart, so for up to a minute paraphrase searches are keyword-only (see
+  [Hybrid search](#hybrid-search)).
 * **Port already in use** (`Bind for 0.0.0.0:8080 failed`): set `FESS_HTTP_PORT` / `SEARCH_HTTP_PORT` in `.env`
   and run `docker compose up -d` and `bash bin/configure.sh` again. Other ports are not enough for a second
   copy of this environment on the same Docker host: `compose.yaml` pins `container_name`
