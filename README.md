@@ -469,9 +469,15 @@ Handy when writing a theme against this data (`q=*` matches every document):
 * **`configure.sh` times out waiting for the Content Chunk Vector Indexer**: the indexer needs 8 to 14 minutes,
   more on a smaller or busier machine, and keeps running; run `bash bin/configure.sh` again to wait for it,
   or set `VECTOR_TIMEOUT`.
-* **A few files have no vectors after the first `configure.sh`**: `fess-chunk.log` says `Skipped due to concurrent
-  update (version conflict)` (typically a few HTML files that another Fess job was updating at the same time). Run
-  `bash bin/configure.sh` again; the indexer picks them up, as does its daily run.
+* **`configure.sh` ends with `Failed/Skipped: 2`, or a few files have no vectors**: on a fresh Quick Start the summary is
+  `Processed 309 documents. Succeeded: 307, Failed/Skipped: 2. Failed: 0, skipped: 2, left pending: 0.` and
+  `configure.sh` prints no warning. The two are the 1.7 MB log and the 1.5 MB CSV, too big for `content_chunker.max_chunks_per_document` (see
+  [Chunking and what the theme shows](#chunking-and-what-the-theme-shows)): they are marked `skipped` for good and stay
+  keyword-only, and running `configure.sh` again does not change that (`Processed 0 documents`). It warns only for
+  `Failed: n` or `left pending: n` above 0. A pending file kept changing while the indexer wrote to it, or the model was not
+  serving for a moment (`fess-chunk.log` has a `leaving ... pending` line for it): run `bash bin/configure.sh` again;
+  the indexer picks it up, as does its daily run. A failed file (`content_chunk_status` `fail`) is not selected again
+  unless `content_chunker.job.retry_failed` is true; `fess-chunk.log` has the cause.
 * **Changing `MODEL_NAME`, `MODEL_DIMENSION` or `CHUNK_SIZE` has no effect or fails**: the vector dimension is part
   of the index mapping, and chunks and vectors that are already stored are not redone. A new `MODEL_NAME` with the
   same dimension would silently mix the old vectors with a query model that does not match them. Reset the index
