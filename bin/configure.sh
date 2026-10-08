@@ -339,10 +339,26 @@ print(last)' 2>/dev/null || true)"
 case "${result}" in
   "Processed "*)
     log "The ${VECTOR_JOB_NAME} finished: ${result}"
-    left="$(printf '%s' "${result}" | sed -n 's|.*Failed/Skipped: \([0-9][0-9]*\)\..*|\1|p')"
-    if [ "${left:-0}" -gt 0 ]; then
-      # Typically files that changed while the indexer ran ("Skipped due to concurrent update").
-      log "WARNING: ${left} documents were not vectorized in this run. Run this script again to pick them up (see data/fess/var/log/fess/fess-chunk.log)."
+    # "Failed/Skipped" also counts the files above the chunk cap, which are skipped for good and
+    # that running this again cannot change. The suffix " Failed: n, skipped: n, left pending: n."
+    # (Fess 15.9) tells them apart; an older Fess prints only "Failed/Skipped: n." and gets the
+    # old warning.
+    counts="$(printf '%s' "${result}" | sed -n 's|.* Failed: \([0-9][0-9]*\), skipped: [0-9][0-9]*, left pending: \([0-9][0-9]*\)\..*|\1 \2|p')"
+    if [ -n "${counts}" ]; then
+      failed="${counts% *}"
+      pending="${counts#* }"
+      if [ "${pending}" -gt 0 ]; then
+        # Typically files that changed while the indexer ran ("Skipped due to concurrent update").
+        log "WARNING: ${pending} documents were left pending in this run. Run this script again to pick them up (see data/fess/var/log/fess/fess-chunk.log)."
+      fi
+      if [ "${failed}" -gt 0 ]; then
+        log "WARNING: ${failed} documents failed in this run. Running this script again does not retry them (content_chunker.job.retry_failed is false); see data/fess/var/log/fess/fess-chunk.log for the cause."
+      fi
+    else
+      left="$(printf '%s' "${result}" | sed -n 's|.*Failed/Skipped: \([0-9][0-9]*\)\..*|\1|p')"
+      if [ "${left:-0}" -gt 0 ]; then
+        log "WARNING: ${left} documents were not vectorized in this run. Run this script again to pick them up (see data/fess/var/log/fess/fess-chunk.log)."
+      fi
     fi
     ;;
   "") die "The ${VECTOR_JOB_NAME} finished, but fess-chunk.log has no 'Chunk vector processing result:' line for this run. See data/fess/var/log/fess/fess-chunk.log" ;;
