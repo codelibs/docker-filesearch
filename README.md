@@ -7,7 +7,7 @@ generated sample file tree (a sample company, "Codelibs, Inc."; every name, figu
 try the theme and develop it against realistic file-system data.
 
 * Fess: 15.9 (`ghcr.io/codelibs/fess:snapshot-noble`, the in-development build; pin a 15.9.x tag after its release)
-* Search engine: OpenSearch (`fess-opensearch:3.8.0`), which also hosts the embedding model
+* Search engine: OpenSearch (`fess-opensearch:3.9.0`), which also hosts the embedding model
 * Search: keyword and vector search over a multilingual embedding model, fused in one
   OpenSearch request (Fess 15.9 engine-side hybrid search; see [Hybrid search](#hybrid-search))
 * Works on amd64 and arm64

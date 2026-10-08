@@ -93,7 +93,7 @@ services:
     # ghcr.io/codelibs/fess-opensearch ships the plugins the hybrid search needs:
     # k-NN (chunk vectors), ML Commons (hosts the embedding model) and Neural
     # Search (the `hybrid` query).
-    image: ghcr.io/codelibs/fess-opensearch:3.8.0
+    image: ghcr.io/codelibs/fess-opensearch:3.9.0
     container_name: filesearch-search01
     restart: unless-stopped
     environment:
