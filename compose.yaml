@@ -1,11 +1,13 @@
 services:
   fess01:
+    # In-development Fess build (15.10). Pin a release tag (for example
+    # ghcr.io/codelibs/fess:15.9.0-noble) for a stable stack.
     # The Ubuntu-based "-noble" variant is used because it ships ImageMagick,
     # poppler and LibreOffice, which Fess needs for PDF / Office / image
     # thumbnails. The plain Alpine tag (no "-noble") has none of them, so every
     # thumbnail request stays a 404; use it by setting FESS_IMAGE if you do not
     # need thumbnails.
-    image: ${FESS_IMAGE:-ghcr.io/codelibs/fess:15.9.0-noble}
+    image: ${FESS_IMAGE:-ghcr.io/codelibs/fess:snapshot-noble}
     container_name: filesearch-fess01
     restart: unless-stopped
     ports:
