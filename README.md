@@ -6,7 +6,7 @@ theme** from [fess-themes](https://github.com/codelibs/fess-themes), and crawls 
 generated sample file tree (a sample company, "Codelibs, Inc."; every name, figure and text in it is generated), so that you can
 try the theme and develop it against realistic file-system data.
 
-* Fess: 15.9 (`ghcr.io/codelibs/fess:snapshot-noble`, the in-development build; pin a 15.9.x tag after its release)
+* Fess: 15.9 (`ghcr.io/codelibs/fess:15.9.0-noble`)
 * Search engine: OpenSearch (`fess-opensearch:3.9.0`), which also hosts the embedding model
 * Search: keyword and vector search over a multilingual embedding model, fused in one
   OpenSearch request (Fess 15.9 engine-side hybrid search; see [Hybrid search](#hybrid-search))
@@ -113,7 +113,7 @@ applies the new value.
 | `FESS_HTTP_PORT` | `8080` | Fess on the host (container port 8080) |
 | `SEARCH_HTTP_PORT` | `9200` | OpenSearch on the host; bound to `127.0.0.1` only because its security plugin is disabled, and the node hosts ML Commons (anyone reaching the port could register models) |
 | `OPENSEARCH_HEAP` | `2g` | OpenSearch heap (`-Xms`/`-Xmx`); the node also hosts the embedding model. Use `4g` if a script sends searches back to back (see Troubleshooting) |
-| `FESS_IMAGE` | `ghcr.io/codelibs/fess:snapshot-noble` | Fess image (see [Thumbnails](#thumbnails)) |
+| `FESS_IMAGE` | `ghcr.io/codelibs/fess:15.9.0-noble` | Fess image (see [Thumbnails](#thumbnails)) |
 | `THEME_NAME` | `filesearch` | Theme directory to sync and mount |
 | `FESS_THEMES_DIR` | (unset) | Local fess-themes checkout to copy the theme from |
 | `FESS_THEMES_REPO` / `FESS_THEMES_REF` | `https://github.com/codelibs/fess-themes.git` / `main` | Where `setup.sh` clones the theme from when `FESS_THEMES_DIR` is unset |
@@ -397,7 +397,7 @@ running`.
 
 Fess makes thumbnails of PDF, Office and image files with ImageMagick, poppler and
 LibreOffice. Only the Ubuntu-based image has them, which is why `FESS_IMAGE` defaults to
-`ghcr.io/codelibs/fess:snapshot-noble`. With the Alpine `ghcr.io/codelibs/fess:snapshot`
+`ghcr.io/codelibs/fess:15.9.0-noble`. With the Alpine `ghcr.io/codelibs/fess:15.9.0`
 no thumbnail is generated at all (`/thumbnail/` stays 404).
 
 * `/thumbnail/?docId=<id>&queryId=<query_id>` needs the `query_id` from a search response.
