@@ -358,7 +358,7 @@ a value in this file wins over the `-Dfess.system.*` option, which would leave `
 
 | Key | Value | Why |
 |---|---|---|
-| `theme.default` | `filesearch` | The static theme served at `/` (written from `THEME_NAME` on first run) |
+| `theme.default` | `filesearch` | The theme served at `/` (written from `THEME_NAME` on first run) |
 | `thumbnail.enabled` | `true` | Fess generates and serves `/thumbnail/` images (default is false) |
 | `search.file.proxy` | `true` | `/go/?docId=...` streams `file:` / `smb:` documents over HTTP (default true) |
 | `web.api.json` | `true` | Enables `/api/v2/*` (default true) |
