@@ -53,7 +53,7 @@ If a port is already in use, copy `.env.example` to `.env` first and change it
   first run (an existing file is never overwritten), syncs the theme into
   `data/fess/usr/share/fess/app/themes/<theme>`, and runs `bin/seed-sample.sh`.
   On Linux it also hands the Fess and OpenSearch data directories to the container
-  users with `sudo chown`. The theme is cloned from fess-themes (`main` by default); if
+  users with `sudo chown`. The theme is cloned from fess-themes (its `15.9.x` branch by default, which matches Fess 15.9); if
   `themes/filesearch` is not in that ref (for example before it is merged), point
   `FESS_THEMES_DIR` at a local checkout or `FESS_THEMES_REF` at a branch that has it
   (see [Developing the theme](#developing-the-theme)). It also creates `data/semantic`,
@@ -116,7 +116,7 @@ applies the new value.
 | `FESS_IMAGE` | `ghcr.io/codelibs/fess:15.9.0-noble` | Fess image (see [Thumbnails](#thumbnails)) |
 | `THEME_NAME` | `filesearch` | Theme directory to sync and mount |
 | `FESS_THEMES_DIR` | (unset) | Local fess-themes checkout to copy the theme from |
-| `FESS_THEMES_REPO` / `FESS_THEMES_REF` | `https://github.com/codelibs/fess-themes.git` / `main` | Where `setup.sh` clones the theme from when `FESS_THEMES_DIR` is unset |
+| `FESS_THEMES_REPO` / `FESS_THEMES_REF` | `https://github.com/codelibs/fess-themes.git` / `15.9.x` | Where `setup.sh` clones the theme from when `FESS_THEMES_DIR` is unset |
 | `FESS_ADMIN_USER` / `FESS_ADMIN_PASSWORD` | `admin` / `admin` | Account `configure.sh` signs in with |
 | `FESS_TOKEN_NAME` / `FESS_CRAWL_CONFIG_NAME` | `filesearch-dev` / `Sample Files` | Names of the access token and of the file crawl config that `configure.sh` creates, or reuses when one of that name exists. With `--smb`, the SMB crawl config is named `<FESS_CRAWL_CONFIG_NAME> (SMB)` |
 | `CRAWL_TIMEOUT`, `HEALTH_TIMEOUT` | `600`, `300` | Seconds `configure.sh` waits for the crawl and for Fess |

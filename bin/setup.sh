@@ -42,7 +42,7 @@ echo "Syncing '${THEME_NAME}' theme from fess-themes..."
 #   FESS_THEMES_DIR  -> copy from a local fess-themes checkout (e.g. ../fess-workspace/repos/fess-themes)
 #   otherwise        -> shallow clone FESS_THEMES_REPO @ FESS_THEMES_REF
 FESS_THEMES_REPO="${FESS_THEMES_REPO:-https://github.com/codelibs/fess-themes.git}"
-FESS_THEMES_REF="${FESS_THEMES_REF:-main}"
+FESS_THEMES_REF="${FESS_THEMES_REF:-15.9.x}"
 
 if [ -n "${FESS_THEMES_DIR:-}" ]; then
   src="${FESS_THEMES_DIR}/themes/${THEME_NAME}"
