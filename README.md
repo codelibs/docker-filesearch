@@ -116,7 +116,7 @@ applies the new value.
 | `FESS_IMAGE` | `ghcr.io/codelibs/fess:snapshot-noble` | Fess image (see [Thumbnails](#thumbnails)) |
 | `THEME_NAME` | `filesearch` | Theme directory to sync and mount |
 | `FESS_THEMES_DIR` | (unset) | Local fess-themes checkout to copy the theme from |
-| `FESS_THEMES_REPO` / `FESS_THEMES_REF` | `https://github.com/codelibs/fess-themes.git` / `main` | Where `setup.sh` clones the theme from when `FESS_THEMES_DIR` is unset |
+| `FESS_THEMES_REPO` / `FESS_THEMES_REF` | `https://github.com/codelibs/fess-themes.git` / `main` | Where `setup.sh` clones the theme from when `FESS_THEMES_DIR` is unset. `main` follows Fess 15.10; with a released Fess image, set `FESS_THEMES_REF` to the matching branch (for example `15.9.x`) or check out the matching branch of this repository |
 | `FESS_ADMIN_USER` / `FESS_ADMIN_PASSWORD` | `admin` / `admin` | Account `configure.sh` signs in with |
 | `FESS_TOKEN_NAME` / `FESS_CRAWL_CONFIG_NAME` | `filesearch-dev` / `Sample Files` | Names of the access token and of the file crawl config that `configure.sh` creates, or reuses when one of that name exists. With `--smb`, the SMB crawl config is named `<FESS_CRAWL_CONFIG_NAME> (SMB)` |
 | `CRAWL_TIMEOUT`, `HEALTH_TIMEOUT` | `600`, `300` | Seconds `configure.sh` waits for the crawl and for Fess |
