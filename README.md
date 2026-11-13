@@ -256,11 +256,11 @@ mean number of results per query:
 | 0.50 | 6 of 8 | 22 | 0 |
 
 0.35 is the highest tested value at which all eight paraphrases still work. A keyword search gains
-semantic neighbours (`audit`: 2 files by keyword, 44 with the default); raise the value for a shorter
-tail. Scores belong to the model and the chunk size, so measure again after changing either. To try a
-value without restarting Fess, put `content_chunker.search.min_score=0.4` into
-`data/fess/opt/fess/system.properties` (Fess reads it while running), then move the value to
-`SEMANTIC_MIN_SCORE` in `.env` and remove the line.
+semantic neighbours (`audit`: 2 files by keyword, about 44 with the default; the figure moves by a few
+files when the chunk text changes); raise the value for a shorter tail. Scores belong to the model and
+the chunk size, so measure again after changing either. To try a value without restarting Fess, put
+`content_chunker.search.min_score=0.4` into `data/fess/opt/fess/system.properties` (Fess reads it while
+running), then move the value to `SEMANTIC_MIN_SCORE` in `.env` and remove the line.
 
 ### Which searches are fused
 
@@ -268,14 +268,15 @@ A typed query in the default relevance order is one `hybrid` request. A folder s
 theme sends them as `ex_q`) is applied to both halves. Other searches are not fused in OpenSearch:
 
 * An explicit `sort`: every sort column of the theme (Name, Modified, Size, Type, Location), and the name
-  order it uses when there is no keyword. These are keyword-only (`audit`: 44 files by relevance,
+  order it uses when there is no keyword. These are keyword-only (`audit`: about 44 files by relevance,
   2 sorted by name).
 * Advanced search (`as.*` parameters): Fess runs the two searches and fuses them itself.
-* Queries with a quoted phrase of two or more words, a wildcard (`audit*`), an exclusion
-  (`audit -summary`), only a field condition (`title:audit`) or an ASCII `?` at the end: keyword-only.
-  A question like `how often are fire drills held?` therefore finds nothing: leave the `?` out.
-  A quoted single token (for example a Japanese title such as `"契約書"`) is not recognised as a phrase
-  and still runs the vector half.
+* Queries with a quoted phrase, an exclusion (`audit -summary`) or only a field condition
+  (`title:audit`): keyword-only. A quoted single word (for example a Japanese title such as `"契約書"`)
+  is a phrase too (Fess 15.10).
+* A wildcard such as `audit*` or `audit?` is fused: the keyword half reads the `?` or `*` as a wildcard
+  and the vector half embeds the word as typed (Fess 15.10). A multi-word question that ends in an
+  ASCII `?` (for example `how often are fire drills held?`) is searched like the question without the `?`.
 
 Paging stops at `rank.fusion.pagination_depth` (1000) results.
 
